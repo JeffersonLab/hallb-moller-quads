@@ -1,0 +1,303 @@
+#
+# N. Baltzell, 2022
+#
+# Dynapower power supply for a Hall B Moller quadrupole magnet delivered in 2022.
+#
+# Here all the readback PVs are soft channels, and a separate dynapower.py
+# script parses the unsolicited serial readbacks and writes the PVs.  See the
+# other dynapower*.db databases for how we got to this point ...
+#
+# But it seems we now hit a new issue with MOXA terminal servers, maybe specific
+# to this unique case of usually one-way traffic with no periodic polling.  The
+# symptoms are that eventually, few to many hours, data from the power supply
+# stops being transmitted to the host connected to the MOXA, the receive counter
+# on the MOXA ceases to increment, but rebooting the MOXA or sending a periodic
+# dummy message reliably "fixes" it.  The alarm/keepalive records below do that.
+# It's possible more recent MOXA firmware versions may fix it, but no evidence
+# of that in their release notes.
+#
+
+##########################################################
+# Status setters:
+##########################################################
+
+record(longout,"$(P)$(R=)stat:set") {
+    field(DTYP, "stream")
+    field(OUT,  "@dynapower-2022.proto putHex(STAT) $(PORT)")
+    field(DESC, "Status Bits")
+}
+record(bo, "$(P)$(R=)start") {
+    field(DTYP, "stream")
+    field(OUT,  "@dynapower-2022.proto command(SETSTAT02) $(PORT)")
+}
+record(bo, "$(P)$(R=)stop") {
+    field(DTYP, "stream")
+    field(OUT,  "@dynapower-2022.proto command(SETSTAT01) $(PORT)")
+}
+record(bo, "$(P)$(R=)dc:enable") {
+    field(DTYP, "stream")
+    field(OUT,  "@dynapower-2022.proto command(SETSTAT04) $(PORT)")
+}
+record(bo, "$(P)$(R=)dc:disable") {
+    field(DTYP, "stream")
+    field(OUT,  "@dynapower-2022.proto command(SETSTAT08) $(PORT)")
+}
+record(bo, "$(P)$(R=)reset") {
+    field(DTYP, "stream")
+    field(OUT,  "@dynapower-2022.proto command(SETSTAT10) $(PORT)")
+}
+record(seq, "$(P)$(R=)on") {
+    field(LNK1, "$(P)$(R=)start.PROC PP")
+    field(DO1, "1")
+    field(LNK2, "$(P)$(R=)dc:enable.PROC PP")
+    field(DO2, "1")
+    field(DLY2, "3")
+}
+record(seq, "$(P)$(R=)off") {
+    field(LNK1, "$(P)$(R=)dc:disaable.PROC PP")
+    field(DO1, "1")
+    field(LNK2, "$(P)$(R=)stop.PROC PP")
+    field(DO2, "1")
+    field(DLY2, "3")
+}
+
+#########################################################
+# Parameter setters:
+#########################################################
+
+record(ao,"$(P)$(R=)v:set") {
+    field(DTYP, "stream")
+    field(OUT,  "@dynapower-2022.proto putFloat(VOLT) $(PORT)")
+    field(ASLO, "0.1")
+    field(PREC, "1")
+    field(EGU,  "V")
+    field(DRVH, "60")
+    field(DESC, "Voltage")
+}
+record(ao,"$(P)$(R=)i:set") {
+    field(DTYP, "stream")
+    field(OUT,  "@dynapower-2022.proto putFloat(AMPS) $(PORT)")
+    field(ASLO, "0.1")
+    field(PREC, "1")
+    field(EGU,  "A")
+    field(DRVH, "3200")
+    field(DESC, "Current")
+}
+record(ao,"$(P)$(R=)i:ramp") {
+    field(PREC, "1")
+    field(EGU,  "A")
+    field(DRVH, "3200")
+    field(DESC, "Current")
+}
+record(bo,"$(P)$(R=)i:ramp:enable") {
+    field(ZNAM,"Disabled")
+    field(ONAM,"Enabled")
+    field(VAL,"1")
+}
+record(bo,"$(P)$(R=)i:ramp:abort") {
+    field(VAL,"0")
+    field(HIGH,"0.5")
+}
+record(stringin, "$(P)$(R=)i:ramp:msg"){
+    field(VAL, "UDF")
+}
+
+#########################################################
+# Parameter readbacks:
+#########################################################
+
+record(ai,"$(P)$(R=)v:rbk") {
+    field(ASLO, "0.1")
+    field(PREC, "1")
+    field(EGU,  "V")
+    field(DESC, "Voltage")
+    field(HHSV, "MAJOR")
+    field(HSV,  "MINOR")
+    field(LSV,  "MINOR")
+    field(LLSV, "MAJOR")
+    info(autosaveFields_pass0,"HIHI HIGH LOW LOLO")
+}
+record(ai,"$(P)$(R=)i:rbk") {
+    field(ASLO, "0.1")
+    field(PREC, "1")
+    field(EGU,  "A")
+    field(DESC, "Current")
+    field(HHSV, "MAJOR")
+    field(HSV,  "MINOR")
+    field(LSV,  "MINOR")
+    field(LLSV, "MAJOR")
+    info(autosaveFields_pass0,"HIHI HIGH LOW LOLO")
+}
+record(ai,"$(P)$(R=)temp") {
+    field(ASLO, "0.1")
+    field(PREC, "1")
+    field(EGU,  "F")
+    field(DESC, "Coolant Temperature")
+    field(HHSV, "MAJOR")
+    field(HSV,  "MINOR")
+    field(LSV,  "MINOR")
+    field(LLSV, "MAJOR")
+    info(autosaveFields_pass0,"HIHI HIGH LOW LOLO")
+}
+record(ai,"$(P)$(R=)flow") {
+    field(ASLO, "0.1")
+    field(PREC, "1")
+    field(EGU,  "gpm")
+    field(DESC, "Flow Rate")
+    field(HHSV, "MAJOR")
+    field(HSV,  "MINOR")
+    field(LSV,  "MINOR")
+    field(LLSV, "MAJOR")
+    info(autosaveFields_pass0,"HIHI HIGH LOW LOLO")
+}
+
+#########################################################
+# Status readbacks:
+#########################################################
+
+record(mbbiDirect,"$(P)$(R=)stat:rbk") {
+    field(NOBT, "16")
+    field(DESC, "Status Bits")
+    field(FLNK, "$(P)$(R=)ac PP")
+}
+record(mbbiDirect,"$(P)$(R=)fault:1") {
+    field(NOBT, "16")
+    field(DESC, "Fault Bits")
+    field(FLNK, "$(P)$(R=)heartbeat:update PP")
+}
+record(mbbiDirect,"$(P)$(R=)fault:2") {
+    field(NOBT, "16")
+    field(DESC, "Fault Bits")
+#field(FLNK, "$(P)$(R=)heartbeat:update PP")
+}
+
+#########################################################
+# Breakout status words:
+#########################################################
+
+record(bi,"$(P)$(R=)ac") {
+    field(INP,"$(P)$(R=)stat:rbk.B0")
+    field(ZNAM,"OFF")
+    field(ONAM,"ON")
+    field(FLNK, "$(P)$(R=)dc PP")
+}
+record(bi,"$(P)$(R=)dc") {
+    field(INP,"$(P)$(R=)stat:rbk.B1")
+    field(ZNAM,"OFF")
+    field(ONAM,"ON")
+    field(FLNK, "$(P)$(R=)cool PP")
+}
+record(bi,"$(P)$(R=)cool") {
+    field(INP,"$(P)$(R=)stat:rbk.B2")
+    field(ZNAM,"OFF")
+    field(ONAM,"ON")
+    field(FLNK, "$(P)$(R=)fault PP")
+}
+record(bi,"$(P)$(R=)fault") {
+    field(INP,"$(P)$(R=)stat:rbk.B3")
+    field(ZNAM,"Ok")
+    field(ONAM,"Fault")
+    field(ZSV, "NO_ALARM")
+    field(OSV, "MAJOR")
+    field(FLNK, "$(P)$(R=)remote PP")
+}
+record(bi,"$(P)$(R=)remote") {
+    field(INP,"$(P)$(R=)stat:rbk.B4")
+    field(ZNAM,"Local")
+    field(ONAM,"Remote")
+    field(FLNK,"$(P)$(R=)stat:calc PP")
+}
+record(calc, "$(P)$(R=)stat:calc") {
+    field(INPA, "$(P)$(R=)ac")
+    field(INPB, "$(P)$(R=)dc")
+    field(INPD, "$(P)$(R=)fault")
+    field(CALC, "A=1 && B=1 && D=0")
+    field(FLNK, "$(P)$(R=)stat:on PP")
+}
+record(bi, "$(P)$(R=)stat:on") {
+    field(INP, "$(P)$(R=)stat:calc")
+    field(ZNAM, "Off")
+    field(ONAM, "On")
+}
+
+#########################################################
+# Heartbeat for alarming and MOXA keepalive:
+#########################################################
+
+# This heartbeat is periodically updated by a readback PV above.
+record(calcout,"$(P)$(R=)heartbeat:update") {
+    field(INPA, "$(P)$(R=)heartbeat")
+    field(CALC, "A=0 ? 1 : 0")
+    field(OOPT, "Every Time")
+    field(DOPT, "Use CALC")
+    field(OUT,  "$(P)$(R=)heartbeat PP")
+}
+record(bo,"$(P)$(R=)heartbeat") {
+    field(VAL, "0")
+}
+# Here we store a FIFO of recent heartbeat values and calculate
+# minimum and maximum values.
+record(compress,"$(P)$(R=)heartbeat:wf") {
+    field(ALG,  "Circular Buffer")
+    field(NSAM, "20")
+    field(SCAN, "1 second")
+    field(INP,  "$(P)$(R=)heartbeat")
+    field(FLNK, "$(P)$(R=)heartbeat:lo PP")
+}
+record(compress,"$(P)$(R=)heartbeat:lo") {
+    field(ALG,  "N to 1 Low Value")
+    field(NSAM, "1")
+    field(N,    "20")
+    field(INP,  "$(P)$(R=)heartbeat:wf")
+    field(FLNK, "$(P)$(R=)heartbeat:hi PP")
+}
+record(compress,"$(P)$(R=)heartbeat:hi") {
+    field(ALG,  "N to 1 High Value")
+    field(NSAM, "1")
+    field(N,    "20")
+    field(INP,  "$(P)$(R=)heartbeat:wf")
+    field(FLNK, "$(P)$(R=)keepalive:calc PP")
+}
+# Here we (1) test whether the heartbeat is dead, and, if so,
+# (2) send the keepalive message. (3) Then, a few seconds
+# later, check again for a dead heartbeat, regardless whether
+# the keepalive was sent), and set the heartbeat alarm status.
+record(calcout,"$(P)$(R=)keepalive:calc") {
+    field(INPA, "$(P)$(R=)heartbeat:lo.VAL")
+    field(INPB, "$(P)$(R=)heartbeat:hi.VAL")
+    field(CALC, "A=B ? 1 : 0")
+    field(OOPT, "When Non-zero")
+    field(DOPT, "Use CALC")
+    field(OUT,  "$(P)$(R=)keepalive.PROC PP")
+    field(FLNK, "$(P)$(R=)keepalive:check PP")
+}
+record(longout, "$(P)$(R=)keepalive") {
+    field(DTYP, "stream")
+    field(OUT,  "@dynapower-2022.proto keepalive() $(PORT)")
+    field(TPRO, "1")
+}
+record(seq, "$(P)$(R=)keepalive:check") {
+    field(LNK1, "$(P)$(R=)heartbeat:alarm:calc.PROC")
+    field(DO1,  "1")
+    field(DLY1, "5")
+}
+record(calcout,"$(P)$(R=)heartbeat:alarm:calc") {
+    field(INPA, "$(P)$(R=)heartbeat:lo.VAL")
+    field(INPB, "$(P)$(R=)heartbeat:hi.VAL")
+    field(CALC, "A=B ? 1 : 0")
+    field(OOPT, "Every Time")
+    field(DOPT, "Use CALC")
+    field(OUT,  "$(P)$(R=)heartbeat:alarm PP")
+}
+record(bi,"$(P)$(R=)heartbeat:alarm") {
+    field(ZNAM, "Ok")
+    field(ONAM, "Timeout")
+    field(ZSV,  "NO_ALARM")
+    field(OSV,  "MAJOR")
+    field(VAL,  "1")
+    field(PINI, "1")
+}
+
+########################################################
+########################################################
+
