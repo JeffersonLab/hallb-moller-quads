@@ -42,4 +42,4 @@
   * phone call with MCC will now include turning the quads on
   * the on/off/setpoint steps for the quadrupoles will be dropped from our Moller sequencer
     * but no changes to readback checks (status, current)
-  * and, of course, PV name changes
+  * and, of course, PV name changes if necessary
